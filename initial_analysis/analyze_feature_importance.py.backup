@@ -13,20 +13,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Define input and output directories
-# Configure font sizes for better readability
-plt.rcParams.update({
-    "font.size": 14,           # Base font size
-    "axes.titlesize": 16,      # Title font size
-    "axes.labelsize": 14,      # Axis label font size
-    "xtick.labelsize": 12,     # X-axis tick label font size
-    "ytick.labelsize": 12,     # Y-axis tick label font size
-    "legend.fontsize": 12,     # Legend font size
-    "figure.titlesize": 18,    # Figure title font size
-    "axes.linewidth": 1.5,     # Axis line width
-    "grid.linewidth": 0.8,     # Grid line width
-    "lines.linewidth": 2.0,    # Line width
-    "patch.linewidth": 1.0     # Patch line width
-})
 tsv_dir = "/home/ubuntu/zip_contents/"
 output_dir = "/home/ubuntu/feature_analysis_results/"
 os.makedirs(output_dir, exist_ok=True)

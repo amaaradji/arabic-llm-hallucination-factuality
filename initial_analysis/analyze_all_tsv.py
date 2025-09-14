@@ -2,7 +2,7 @@ import pandas as pd
 import os
 
 # Define the directory containing the TSV files
-tsv_dir = "/home/ubuntu/zip_contents/"
+tsv_dir = "/Users/abdelhak/Desktop/paper_code/arabic-llm-hallucination-factuality-main/data/input_dataset"
 
 # List of files to process
 files_to_process = [

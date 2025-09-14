@@ -4,12 +4,11 @@ from openai import AzureOpenAI
 import time
 
 # --- Configuration ---
-AZURE_OPENAI_API_KEY = "XXX"
+AZURE_OPENAI_API_KEY = ""
 AZURE_OPENAI_ENDPOINT = "https://o3miniapi.openai.azure.com/"
 API_VERSION = "2024-12-01-preview"
 MODEL_NAME = "o3-mini"
 DEPLOYMENT_NAME = "o3-mini"
-
 # --- Initialize Azure OpenAI Client ---
 client = AzureOpenAI(
     api_version=API_VERSION,

@@ -1,0 +1,268 @@
+#!/usr/bin/env python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+# Set up plotting style
+plt.style.use('default')
+# Configure font sizes for better readability
+plt.rcParams.update({
+    "font.size": 14,           # Base font size
+    "axes.titlesize": 16,      # Title font size
+    "axes.labelsize": 14,      # Axis label font size
+    "xtick.labelsize": 12,     # X-axis tick label font size
+    "ytick.labelsize": 12,     # Y-axis tick label font size
+    "legend.fontsize": 12,     # Legend font size
+    "figure.titlesize": 18,    # Figure title font size
+    "axes.linewidth": 1.5,     # Axis line width
+    "grid.linewidth": 0.8,     # Grid line width
+    "lines.linewidth": 2.0,    # Line width
+    "patch.linewidth": 1.0     # Patch line width
+})
+sns.set_palette("husl")
+
+# Define directories
+output_dir = "../ml_analysis_results/"
+plots_dir = "../ml_analysis_plots/"
+
+def load_and_summarize_results():
+    """Load and summarize the ML analysis results"""
+    print("=== ML Analysis Results Summary ===")
+    
+    # Load results
+    summary_df = pd.read_csv(os.path.join(output_dir, 'model_performance_summary.csv'))
+    variation_df = pd.read_csv(os.path.join(output_dir, 'variation_analysis.csv'))
+    
+    print(f"\nDataset Information:")
+    print(f"  Total samples: 8,000 (train + dev combined)")
+    print(f"  Features used: 29")
+    print(f"  Target classes: FC (Factually Correct), NF (Non-Factual), FI (Factually Incorrect)")
+    
+    print(f"\n=== Model Performance Summary ===")
+    print(summary_df.to_string(index=False))
+    
+    print(f"\n=== Variation Analysis Summary ===")
+    print("Top 5 most variable features:")
+    print(variation_df.head().to_string(index=False))
+    
+    print(f"\nBottom 5 least variable features:")
+    print(variation_df.tail().to_string(index=False))
+    
+    return summary_df, variation_df
+
+def create_additional_comparison_plots(summary_df):
+    """Create additional comparison plots"""
+    print("\n=== Creating Additional Comparison Plots ===")
+    
+    # 1. Radar Chart for Top Models
+    fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
+    
+    # Get top 5 models
+    top_models = summary_df.head(5)
+    
+    # Metrics for radar chart
+    metrics = ['Accuracy', 'Precision', 'Recall', 'F1_Score', 'CV_Mean']
+    num_metrics = len(metrics)
+    
+    # Compute angle for each metric
+    angles = [n / float(num_metrics) * 2 * np.pi for n in range(num_metrics)]
+    angles += angles[:1]  # Complete the circle
+    
+    # Plot for each model
+    colors = plt.cm.Set3(np.linspace(0, 1, len(top_models)))
+    
+    for i, (_, model) in enumerate(top_models.iterrows()):
+        values = model[metrics].values.flatten().tolist()
+        values += values[:1]  # Complete the circle
+        
+        ax.plot(angles, values, 'o-', linewidth=2, label=model['Model'], color=colors[i])
+        ax.fill(angles, values, alpha=0.1, color=colors[i])
+    
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(metrics)
+    ax.set_ylim(0, 1)
+    ax.set_title('Top 5 Models Performance Radar Chart', size=15, y=1.1)
+    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'radar_chart_top_models.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 2. Model Comparison by Metric Type
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    axes = axes.ravel()
+    
+    metrics = ['Accuracy', 'Precision', 'Recall', 'F1_Score']
+    
+    for i, metric in enumerate(metrics):
+        # Sort by metric
+        sorted_df = summary_df.sort_values(metric, ascending=True)
+        
+        bars = axes[i].barh(range(len(sorted_df)), sorted_df[metric], 
+                           color=sns.color_palette("husl", len(sorted_df)))
+        axes[i].set_yticks(range(len(sorted_df)))
+        axes[i].set_yticklabels(sorted_df['Model'])
+        axes[i].set_xlabel(metric)
+        axes[i].set_title(f'{metric} Comparison')
+        axes[i].set_xlim(0, 1)
+        
+        # Add value labels
+        for j, (bar, value) in enumerate(zip(bars, sorted_df[metric])):
+            axes[i].text(bar.get_width() + 0.01, bar.get_y() + bar.get_height()/2, 
+                        f'{value:.3f}', va='center')
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'metric_comparison_horizontal.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 3. Model Stability Analysis (CV vs Test Performance)
+    plt.figure(figsize=(10, 8))
+    
+    plt.scatter(summary_df['CV_Mean'], summary_df['Accuracy'], 
+               s=100, alpha=0.7, c=range(len(summary_df)), cmap='viridis')
+    
+    # Add model labels
+    for i, model in enumerate(summary_df['Model']):
+        plt.annotate(model, (summary_df.iloc[i]['CV_Mean'], summary_df.iloc[i]['Accuracy']),
+                    xytext=(5, 5), textcoords='offset points', fontsize=8)
+    
+    plt.xlabel('Cross-validation Accuracy')
+    plt.ylabel('Test Accuracy')
+    plt.title('Model Stability: CV vs Test Performance')
+    plt.plot([0, 1], [0, 1], 'r--', alpha=0.5, label='Perfect Agreement')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'model_stability_analysis.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 4. Feature Importance vs Model Performance
+    plt.figure(figsize=(12, 8))
+    
+    # Create a scatter plot of model performance vs feature count
+    # (This is a simplified version - in practice you'd use actual feature importance)
+    
+    # Use F1 score as performance metric
+    performance = summary_df['F1_Score']
+    
+    # Create categories for different model types
+    model_types = []
+    for model in summary_df['Model']:
+        if 'Forest' in model or 'Tree' in model:
+            model_types.append('Tree-based')
+        elif 'Boosting' in model or 'Ada' in model:
+            model_types.append('Boosting')
+        elif 'SVM' in model or 'Neural' in model:
+            model_types.append('Advanced')
+        else:
+            model_types.append('Traditional')
+    
+    # Color by model type
+    colors = {'Tree-based': 'blue', 'Boosting': 'green', 'Advanced': 'red', 'Traditional': 'orange'}
+    
+    for model_type in set(model_types):
+        mask = [t == model_type for t in model_types]
+        plt.scatter([i for i, m in enumerate(mask) if m], 
+                   performance[mask], 
+                   c=colors[model_type], 
+                   label=model_type, 
+                   s=100, alpha=0.7)
+    
+    plt.xlabel('Model Index')
+    plt.ylabel('F1 Score')
+    plt.title('Model Performance by Type')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'model_performance_by_type.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
+def create_feature_analysis_plots(variation_df):
+    """Create feature analysis plots"""
+    print("\n=== Creating Feature Analysis Plots ===")
+    
+    # 1. Feature Variation Distribution
+    plt.figure(figsize=(12, 8))
+    
+    # Plot variation distribution
+    plt.hist(variation_df['Coefficient_of_Variation'], bins=30, alpha=0.7, edgecolor='black')
+    plt.xlabel('Coefficient of Variation (%)')
+    plt.ylabel('Number of Features')
+    plt.title('Distribution of Feature Variation')
+    plt.axvline(variation_df['Coefficient_of_Variation'].median(), color='red', 
+                linestyle='--', label=f'Median: {variation_df["Coefficient_of_Variation"].median():.1f}%')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'feature_variation_distribution.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 2. Top and Bottom Features by Variation
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+    
+    # Top 10 most variable features
+    top_features = variation_df.head(10)
+    ax1.barh(range(len(top_features)), top_features['Coefficient_of_Variation'])
+    ax1.set_yticks(range(len(top_features)))
+    ax1.set_yticklabels(top_features['Feature'])
+    ax1.set_xlabel('Coefficient of Variation (%)')
+    ax1.set_title('Top 10 Most Variable Features')
+    ax1.invert_yaxis()
+    
+    # Bottom 10 least variable features
+    bottom_features = variation_df.tail(10)
+    ax2.barh(range(len(bottom_features)), bottom_features['Coefficient_of_Variation'])
+    ax2.set_yticks(range(len(bottom_features)))
+    ax2.set_yticklabels(bottom_features['Feature'])
+    ax2.set_xlabel('Coefficient of Variation (%)')
+    ax2.set_title('Bottom 10 Least Variable Features')
+    ax2.invert_yaxis()
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'feature_variation_extremes.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
+def main():
+    """Main execution function"""
+    print("=== Comprehensive Results Summary ===")
+    
+    # Load and summarize results
+    summary_df, variation_df = load_and_summarize_results()
+    
+    # Create additional comparison plots
+    create_additional_comparison_plots(summary_df)
+    
+    # Create feature analysis plots
+    create_feature_analysis_plots(variation_df)
+    
+    # Print key insights
+    print(f"\n=== KEY INSIGHTS ===")
+    print(f"1. Best Performing Model: {summary_df.iloc[0]['Model']} (F1: {summary_df.iloc[0]['F1_Score']:.4f})")
+    print(f"2. Most Stable Model: {summary_df.loc[summary_df['CV_Std'].idxmin(), 'Model']} (CV Std: {summary_df['CV_Std'].min():.4f})")
+    print(f"3. Highest Accuracy: {summary_df.loc[summary_df['Accuracy'].idxmax(), 'Model']} (Accuracy: {summary_df['Accuracy'].max():.4f})")
+    
+    print(f"\n4. Feature Variation Insights:")
+    print(f"   - Most variable feature: {variation_df.iloc[0]['Feature']} ({variation_df.iloc[0]['Coefficient_of_Variation']:.1f}%)")
+    print(f"   - Least variable feature: {variation_df.iloc[-1]['Feature']} ({variation_df.iloc[-1]['Coefficient_of_Variation']:.1f}%)")
+    print(f"   - Average variation: {variation_df['Coefficient_of_Variation'].mean():.1f}%")
+    
+    print(f"\n5. Model Type Performance:")
+    tree_based = summary_df[summary_df['Model'].str.contains('Forest|Tree')]['F1_Score'].mean()
+    boosting = summary_df[summary_df['Model'].str.contains('Boosting|Ada')]['F1_Score'].mean()
+    advanced = summary_df[summary_df['Model'].str.contains('SVM|Neural')]['F1_Score'].mean()
+    traditional = summary_df[summary_df['Model'].str.contains('Logistic|Naive|K-Nearest')]['F1_Score'].mean()
+    
+    print(f"   - Tree-based models: {tree_based:.4f}")
+    print(f"   - Boosting models: {boosting:.4f}")
+    print(f"   - Advanced models (SVM/Neural): {advanced:.4f}")
+    print(f"   - Traditional models: {traditional:.4f}")
+    
+    print(f"\nAll additional plots saved to: {plots_dir}")
+
+if __name__ == "__main__":
+    main() 

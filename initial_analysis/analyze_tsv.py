@@ -3,13 +3,13 @@ import pandas as pd
 import os
 
 # Define the directory containing the TSV files
-tsv_dir = "/home/ubuntu/zip_contents/"
+tsv_dir = "../data/input_dataset/"
 
 # List of files to process
 files_to_process = [
-    os.path.join(tsv_dir, "Arabic_Benchmark_for_LLMs_-_Train.tsv"),
-    os.path.join(tsv_dir, "Arabic_Benchmark_for_LLMs_-_Dev.tsv"),
-    os.path.join(tsv_dir, "Arabic_Benchmark_for_LLMs_-_Test.tsv")
+    "Arabic LLMs Hallucination-OSACT2024-Train.txt",
+    "Arabic LLMs Hallucination-OSACT2024-Dev.txt",
+    "Arabic LLMs Hallucination-OSACT2024-Test.txt"
 ]
 
 # Initialize a dictionary to store the results
@@ -19,7 +19,7 @@ results = {}
 for file_path in files_to_process:
     try:
         # Load the TSV file into a pandas DataFrame
-        df = pd.read_csv(file_path, sep='\t', on_bad_lines='skip') # Added on_bad_lines='skip' to handle potential errors
+        df = pd.read_csv(os.path.join(tsv_dir, file_path), sep='\t', engine='python', quoting=3) # Added on_bad_lines='skip' to handle potential errors
 
         # Get basic information about the DataFrame
         file_name = os.path.basename(file_path)

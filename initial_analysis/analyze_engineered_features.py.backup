@@ -1,0 +1,193 @@
+#!/usr/bin/env python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+# Set up plotting style
+plt.style.use('default')
+sns.set_palette("husl")
+
+# Define the directory containing the engineered features
+feature_dir = "../feature_engineered_data/"
+
+def analyze_features(df, dataset_name):
+    """Analyze the engineered features"""
+    print(f"\n=== Feature Analysis for {dataset_name} Dataset ===")
+    print(f"Dataset shape: {df.shape}")
+    
+    # Separate feature types
+    text_features = ['text_length', 'word_count', 'char_count', 'avg_word_length', 
+                    'arabic_char_count', 'diacritics_count', 'punctuation_count', 
+                    'number_count', 'english_word_count', 'arabic_char_ratio', 
+                    'diacritics_ratio', 'punctuation_ratio', 'word_diversity', 'sentence_count']
+    
+    pos_features = ['pos_noun', 'pos_verb', 'pos_adj', 'pos_adv', 'pos_prep', 
+                   'pos_conj', 'pos_interj', 'pos_pseudo', 'pos_other']
+    
+    model_features = ['model_gpt4', 'model_chatgpt']
+    
+    readability_features = ['readability_level', 'readability_easy', 'readability_medium', 'readability_hard']
+    
+    label_features = ['label_fc', 'label_nf', 'label_fi']
+    
+    # Print feature statistics
+    print(f"\nText Features ({len(text_features)}):")
+    print(df[text_features].describe())
+    
+    print(f"\nPOS Features Distribution:")
+    pos_counts = df[pos_features].sum().sort_values(ascending=False)
+    for pos, count in pos_counts.items():
+        percentage = (count / len(df)) * 100
+        print(f"  {pos}: {count} ({percentage:.1f}%)")
+    
+    print(f"\nModel Distribution:")
+    model_counts = df[model_features].sum()
+    for model, count in model_counts.items():
+        percentage = (count / len(df)) * 100
+        print(f"  {model}: {count} ({percentage:.1f}%)")
+    
+    print(f"\nReadability Distribution:")
+    readability_counts = df['readability_level'].value_counts().sort_index()
+    for level, count in readability_counts.items():
+        percentage = (count / len(df)) * 100
+        print(f"  Level {level}: {count} ({percentage:.1f}%)")
+    
+    print(f"\nLabel Distribution:")
+    label_counts = df[label_features].sum()
+    for label, count in label_counts.items():
+        percentage = (count / len(df)) * 100
+        print(f"  {label}: {count} ({percentage:.1f}%)")
+    
+    return {
+        'text_features': text_features,
+        'pos_features': pos_features,
+        'model_features': model_features,
+        'readability_features': readability_features,
+        'label_features': label_features
+    }
+
+def create_visualizations(df, dataset_name, feature_groups):
+    """Create visualizations for the engineered features"""
+    print(f"\n=== Creating Visualizations for {dataset_name} ===")
+    
+    # Create output directory for plots
+    plots_dir = f"../feature_analysis_plots/{dataset_name}/"
+    os.makedirs(plots_dir, exist_ok=True)
+    
+    # 1. Text Features Distribution
+    fig, axes = plt.subplots(3, 4, figsize=(20, 15))
+    axes = axes.ravel()
+    
+    for i, feature in enumerate(feature_groups['text_features']):
+        if i < 12:  # Limit to 12 features for the grid
+            axes[i].hist(df[feature], bins=30, alpha=0.7, edgecolor='black')
+            axes[i].set_title(f'{feature}')
+            axes[i].set_xlabel('Value')
+            axes[i].set_ylabel('Frequency')
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'text_features_distribution.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 2. POS Features Distribution
+    plt.figure(figsize=(12, 6))
+    pos_counts = df[feature_groups['pos_features']].sum().sort_values(ascending=False)
+    plt.bar(range(len(pos_counts)), pos_counts.values)
+    plt.xticks(range(len(pos_counts)), [pos.replace('pos_', '') for pos in pos_counts.index], rotation=45)
+    plt.title(f'POS Features Distribution - {dataset_name}')
+    plt.xlabel('POS Tag')
+    plt.ylabel('Count')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'pos_features_distribution.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 3. Readability vs Label Distribution
+    plt.figure(figsize=(10, 6))
+    readability_label_cross = pd.crosstab(df['readability_level'], 
+                                        df[feature_groups['label_features']].idxmax(axis=1).str.replace('label_', ''))
+    readability_label_cross.plot(kind='bar', stacked=True)
+    plt.title(f'Readability Level vs Label Distribution - {dataset_name}')
+    plt.xlabel('Readability Level')
+    plt.ylabel('Count')
+    plt.legend(title='Label')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'readability_vs_label.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 4. Model vs Label Distribution
+    plt.figure(figsize=(8, 6))
+    model_label_cross = pd.crosstab(df[feature_groups['model_features']].idxmax(axis=1).str.replace('model_', ''), 
+                                   df[feature_groups['label_features']].idxmax(axis=1).str.replace('label_', ''))
+    model_label_cross.plot(kind='bar', stacked=True)
+    plt.title(f'Model vs Label Distribution - {dataset_name}')
+    plt.xlabel('Model')
+    plt.ylabel('Count')
+    plt.legend(title='Label')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'model_vs_label.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 5. Correlation Heatmap (numerical features only)
+    numerical_features = feature_groups['text_features'] + ['readability_level']
+    correlation_matrix = df[numerical_features].corr()
+    
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, 
+                square=True, fmt='.2f', cbar_kws={'shrink': 0.8})
+    plt.title(f'Feature Correlation Matrix - {dataset_name}')
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, 'correlation_heatmap.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Visualizations saved to: {plots_dir}")
+
+def main():
+    """Main execution function"""
+    files_to_process = {
+        "train": "train_engineered_features.csv",
+        "dev": "dev_engineered_features.csv",
+        "test": "test_engineered_features.csv"
+    }
+    
+    for dataset_name, file_name in files_to_process.items():
+        print(f"\n{'='*50}")
+        print(f"Processing {dataset_name} dataset")
+        print(f"{'='*50}")
+        
+        # Load engineered features
+        file_path = os.path.join(feature_dir, file_name)
+        df = pd.read_csv(file_path)
+        
+        # Analyze features
+        feature_groups = analyze_features(df, dataset_name)
+        
+        # Create visualizations
+        create_visualizations(df, dataset_name, feature_groups)
+        
+        # Show sample of engineered features
+        print(f"\nSample engineered features for {dataset_name}:")
+        print(df.head(3))
+        
+        # Feature importance analysis (correlation with labels)
+        print(f"\nFeature importance analysis for {dataset_name}:")
+        numerical_features = feature_groups['text_features'] + ['readability_level']
+        label_col = df[feature_groups['label_features']].idxmax(axis=1)
+        
+        # Convert labels to numerical for correlation
+        label_mapping = {'label_fc': 0, 'label_nf': 1, 'label_fi': 2}
+        label_numerical = label_col.map(label_mapping)
+        
+        correlations = []
+        for feature in numerical_features:
+            corr = df[feature].corr(label_numerical)
+            correlations.append((feature, abs(corr)))
+        
+        correlations.sort(key=lambda x: x[1], reverse=True)
+        print("Top 10 most correlated features with labels:")
+        for feature, corr in correlations[:10]:
+            print(f"  {feature}: {corr:.3f}")
+
+if __name__ == "__main__":
+    main() 
